@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <script src="request.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <form>
+    <input type="text" id="country-name" placeholder="Введите название страны :">
+    <button type="submit" id="show">Search</button>
+  </form>
+
+  <div id="container"></div>
+  <div class="preloader">
+    <div class="preloader__row">
+      <div class="preloader__item"></div>
+      <div class="preloader__item"></div>
+    </div>
+  </div>
+
+</body>
+
+<script>
+
+  const state = {
+    country: {
+      name: '',
+      weather: {}
+    },
+    borders: []
+  };
+
+  document.querySelector('.preloader').style.display = 'none';
+
+  document.querySelector('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const userAnswer = document.getElementById('country-name').value.trim();
+    if (!userAnswer) {
+      alert('Введите название страны!');
+      return;
+    }
+
+    const baseUrl = `https://restcountries.com/v2/name/${userAnswer}`;
+    const response = await fetch(baseUrl);
+    const data = await response.json();
+    const countryData = data[0];
+
+    handleCountry(countryData);
+    state.country.weather = await getWeather(countryData.capital);
+    await getBordersCountry(countryData);
+    render();
+  });
+
+  const handleCountry = (country) => {
+    state.country.name = country.name;
+    state.country.capital = country.capital;
+  };
+
+  const getBordersCountry = async (country) => {
+    document.querySelector('.preloader').style.display = 'block';
+    const area = [];
+
+    if (!country.borders || country.borders.length === 0) {
+      state.borders = [];
+      alert('У страны нет соседей')
+      document.querySelector('.preloader').style.display = 'none';
+      return;
+    }
+
+    for (const border of country.borders) {
+      const borderUrl = `https://restcountries.com/v2/alpha/${border}`;
+      const response = await fetch(borderUrl);
+      const { name, capital } = await response.json();
+      const weather = await getWeather(capital);
+      area.push({ weather, name, capital });
+    }
+
+    state.borders = area;
+    document.querySelector('.preloader').style.display = 'none';
+  };
+
+  const getWeather = async (capital) => {
+    if (!capital) return {};
+    const weatherUrl = `https://wttr.in/${capital}?format=j1`;
+    const response = await fetch(weatherUrl);
+    const weatherData = await response.json();
+    const currentWeather = weatherData.current_condition[0];
+    return {
+      temperature: currentWeather.temp_C,
+      description: currentWeather.weatherDesc[0].value,
+      windDurection: currentWeather.winddir16Point,
+      windSpid: currentWeather.windspeedKmph
+    };
+  };
+
+  const render = () => {
+    const container = document.getElementById('container');
+    const { name, capital, weather } = state.country;
+
+    container.innerHTML = `
+    <p><b>Name:</b> ${name}</p>
+    <p><b>Capital:</b> ${capital}</p>
+    <p><b>Current weather:</b> ${weather.description}, Temperature: ${weather.temperature}°C, Wind: ${weather.windDurection}, ${weather.windSpid} km/h</p>
+    <p><b>Bordering countries:</b></p>
+    <ul class="border-list">
+      ${state.borders.map(({ name, capital, weather }) => `
+        <li>
+          <b>Name:</b> ${name}<br>
+          <b>Capital:</b> ${capital}<br>
+          <b>Weather:</b> ${weather.description}, ${weather.temperature}°C, ${weather.windDurection}, ${weather.windSpid} km/h
+        </li>
+      `).join('')}
+    </ul>
+  `;
+  };
+
+
+</script>
+
+</html>
